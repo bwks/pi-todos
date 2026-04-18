@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-18
+
 ### Added
 - `/todo` subcommands for `list`, `status`, `done`, `workon`, and `clear`
 - assignee tracking for delegated todo work
