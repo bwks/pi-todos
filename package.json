@@ -1,0 +1,23 @@
+{
+  "name": "pi-todos",
+  "version": "0.1.0",
+  "description": "Session-based todo extension for pi",
+  "private": false,
+  "author": "bwks",
+  "license": "MIT",
+  "homepage": "https://github.com/bwks/pi-todos",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/bwks/pi-todos.git"
+  },
+  "keywords": ["pi-package"],
+  "scripts": {
+    "test": "node --import tsx --test tests/**/*.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
+  },
+  "pi": {
+    "extensions": ["./extensions"]
+  }
+}
