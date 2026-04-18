@@ -67,6 +67,29 @@ test("set_status validates id and status", () => {
 	assert.equal(missingStatus.details.error, "status required");
 });
 
+test("workon assigns a todo to an agent and marks it in progress", () => {
+	const added = applyTodoAction(initialTodoState(), { action: "add", text: "delegate work" });
+	const updated = applyTodoAction(added.state, { action: "workon", id: 1, assignee: "frontend-agent" });
+
+	assert.equal(updated.text, "Todo #1 assigned to frontend-agent and marked in_progress");
+	assert.deepEqual(updated.state.todos[0], {
+		id: 1,
+		text: "delegate work",
+		status: "in_progress",
+		assignee: "frontend-agent",
+	});
+});
+
+test("workon validates id and assignee", () => {
+	const base = applyTodoAction(initialTodoState(), { action: "add", text: "task" }).state;
+
+	const missingId = applyTodoAction(base, { action: "workon", assignee: "agent-a" });
+	assert.equal(missingId.details.error, "id required");
+
+	const missingAssignee = applyTodoAction(base, { action: "workon", id: 1 });
+	assert.equal(missingAssignee.details.error, "assignee required");
+});
+
 test("clear resets todos and next id", () => {
 	let state = initialTodoState();
 	state = applyTodoAction(state, { action: "add", text: "one" }).state;
@@ -83,12 +106,12 @@ test("clear resets todos and next id", () => {
 
 test("restoreTodoState rebuilds from the latest stored snapshot and clones it", () => {
 	const first = applyTodoAction(initialTodoState(), { action: "add", text: "first" });
-	const second = applyTodoAction(first.state, { action: "set_status", id: 1, status: "done" });
+	const second = applyTodoAction(first.state, { action: "workon", id: 1, assignee: "qa-agent" });
 
 	const restored = restoreTodoState([undefined, first.details, second.details]);
 	assert.deepEqual(restored, second.state);
 	assert.notStrictEqual(restored.todos[0], second.details.todos[0]);
 
 	second.details.todos[0].status = "cancelled";
-	assert.equal(restored.todos[0].status, "done");
+	assert.equal(restored.todos[0].status, "in_progress");
 });

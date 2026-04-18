@@ -9,6 +9,7 @@ interface LegacyTodo {
 	text?: unknown;
 	done?: unknown;
 	status?: unknown;
+	assignee?: unknown;
 }
 
 interface PersistedTodoState {
@@ -24,8 +25,15 @@ function normalizeTodo(value: unknown): Todo | null {
 	const todo = value as LegacyTodo;
 	if (typeof todo.id !== "number" || typeof todo.text !== "string") return null;
 
-	const status = isTodoStatus(todo.status) ? todo.status : typeof todo.done === "boolean" ? (todo.done ? "done" : "unassigned") : "unassigned";
-	return { id: todo.id, text: todo.text, status };
+	const status = isTodoStatus(todo.status)
+		? todo.status
+		: typeof todo.done === "boolean"
+			? todo.done
+				? "done"
+				: "unassigned"
+			: "unassigned";
+	const assignee = typeof todo.assignee === "string" && todo.assignee.trim() ? todo.assignee.trim() : undefined;
+	return { id: todo.id, text: todo.text, status, ...(assignee ? { assignee } : {}) };
 }
 
 function normalizeTodoState(raw: PersistedTodoState | null | undefined): TodoState {
@@ -33,7 +41,8 @@ function normalizeTodoState(raw: PersistedTodoState | null | undefined): TodoSta
 
 	const todos = Array.isArray(raw.todos) ? raw.todos.map(normalizeTodo).filter((todo): todo is Todo => todo !== null) : [];
 	const highestId = todos.reduce((max, todo) => Math.max(max, todo.id), 0);
-	const nextId = typeof raw.nextId === "number" && Number.isInteger(raw.nextId) && raw.nextId > highestId ? raw.nextId : highestId + 1;
+	const nextId =
+		typeof raw.nextId === "number" && Number.isInteger(raw.nextId) && raw.nextId > highestId ? raw.nextId : highestId + 1;
 	return { todos, nextId };
 }
 

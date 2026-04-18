@@ -24,7 +24,7 @@ test("loadTodoState returns null when storage file does not exist", async () => 
 test("saveTodoState persists and loadTodoState restores todo state", async () => {
 	const projectDir = await makeTempProject();
 	const state: TodoState = {
-		todos: [{ id: 1, text: "persist me", status: "done" }],
+		todos: [{ id: 1, text: "persist me", status: "done", assignee: "agent-a" }],
 		nextId: 2,
 	};
 
@@ -44,7 +44,7 @@ test("loadTodoState normalizes invalid nextId and ignores malformed todos", asyn
 		JSON.stringify({
 			todos: [
 				{ id: 3, text: "valid", done: false },
-				{ id: 4, text: "already migrated", status: "assigned" },
+				{ id: 4, text: "already migrated", status: "assigned", assignee: "worker" },
 				{ id: "bad", text: "oops", done: false },
 			],
 			nextId: 1,
@@ -56,7 +56,7 @@ test("loadTodoState normalizes invalid nextId and ignores malformed todos", asyn
 	assert.deepEqual(restored, {
 		todos: [
 			{ id: 3, text: "valid", status: "unassigned" },
-			{ id: 4, text: "already migrated", status: "assigned" },
+			{ id: 4, text: "already migrated", status: "assigned", assignee: "worker" },
 		],
 		nextId: 5,
 	});

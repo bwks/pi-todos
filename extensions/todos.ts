@@ -8,6 +8,7 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
+import { parseTodoCommandArgs } from "../src/todo-command";
 import { getTodoStoragePath, loadTodoState, saveTodoState } from "../src/todo-storage";
 import {
 	applyTodoAction,
@@ -19,12 +20,13 @@ import {
 } from "../src/todo-state";
 
 const TodoParams = Type.Object({
-	action: StringEnum(["list", "add", "toggle", "set_status", "clear"] as const),
+	action: StringEnum(["list", "add", "toggle", "set_status", "workon", "clear"] as const),
 	text: Type.Optional(Type.String({ description: "Todo text (for add)" })),
-	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle/set_status)" })),
+	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle/set_status/workon)" })),
 	status: Type.Optional(
 		StringEnum([...TODO_STATUSES] as TodoStatus[], { description: "Todo status (for add/set_status)" }),
 	),
+	assignee: Type.Optional(Type.String({ description: "Agent/session responsible for the todo (for workon)" })),
 });
 
 function formatStatus(status: TodoStatus): string {
@@ -67,6 +69,10 @@ function getStatusMarker(theme: Theme, status: TodoStatus): string {
 		case "unassigned":
 			return theme.fg("dim", "○");
 	}
+}
+
+function formatAssignee(assignee?: string): string {
+	return assignee ? ` @${assignee}` : "";
 }
 
 class TodoListComponent {
@@ -116,7 +122,8 @@ class TodoListComponent {
 				const id = th.fg("accent", `#${todo.id}`);
 				const status = th.fg(getStatusColor(todo.status), `[${formatStatus(todo.status)}]`);
 				const text = isClosedStatus(todo.status) ? th.fg("dim", todo.text) : th.fg("text", todo.text);
-				lines.push(truncateToWidth(`  ${marker} ${id} ${status} ${text}`, width));
+				const assignee = todo.assignee ? th.fg("accent", formatAssignee(todo.assignee)) : "";
+				lines.push(truncateToWidth(`  ${marker} ${id} ${status} ${text}${assignee}`, width));
 			}
 		}
 
@@ -167,8 +174,9 @@ export default function (pi: ExtensionAPI) {
 	pi.registerTool({
 		name: "todo",
 		label: "Todo",
-		description: "Manage a todo list. Actions: list, add (text/status), toggle (id), set_status (id/status), clear",
-		promptSnippet: "Manage project todos (list/add/toggle/set_status/clear)",
+		description:
+			"Manage a todo list. Actions: list, add (text/status), toggle (id), set_status (id/status), workon (id/assignee), clear",
+		promptSnippet: "Manage project todos (list/add/toggle/set_status/workon/clear)",
 		parameters: TodoParams,
 		executionMode: "sequential" as ToolExecutionMode,
 
@@ -192,6 +200,7 @@ export default function (pi: ExtensionAPI) {
 			if (args.text) text += ` ${theme.fg("dim", `"${args.text}"`)}`;
 			if (args.id !== undefined) text += ` ${theme.fg("accent", `#${args.id}`)}`;
 			if (args.status) text += ` ${theme.fg(getStatusColor(args.status), `[${formatStatus(args.status)}]`)}`;
+			if (args.assignee) text += ` ${theme.fg("accent", `@${args.assignee}`)}`;
 			return new Text(text, 0, 0);
 		},
 
@@ -218,7 +227,8 @@ export default function (pi: ExtensionAPI) {
 						const marker = getStatusMarker(theme, t.status);
 						const status = theme.fg(getStatusColor(t.status), `[${formatStatus(t.status)}]`);
 						const itemText = isClosedStatus(t.status) ? theme.fg("dim", t.text) : theme.fg("muted", t.text);
-						listText += `\n${marker} ${theme.fg("accent", `#${t.id}`)} ${status} ${itemText}`;
+						const assignee = t.assignee ? theme.fg("accent", formatAssignee(t.assignee)) : "";
+						listText += `\n${marker} ${theme.fg("accent", `#${t.id}`)} ${status} ${itemText}${assignee}`;
 					}
 					if (!expanded && todoList.length > 5) {
 						listText += `\n${theme.fg("dim", `... ${todoList.length - 5} more`)}`;
@@ -236,13 +246,15 @@ export default function (pi: ExtensionAPI) {
 							" " +
 							theme.fg("muted", added.text) +
 							" " +
-							theme.fg(getStatusColor(added.status), `[${formatStatus(added.status)}]`),
+							theme.fg(getStatusColor(added.status), `[${formatStatus(added.status)}]`) +
+							(added.assignee ? ` ${theme.fg("accent", `@${added.assignee}`)}` : ""),
 						0,
 						0,
 					);
 				}
 				case "toggle":
-				case "set_status": {
+				case "set_status":
+				case "workon": {
 					const text = result.content[0];
 					const msg = text?.type === "text" ? text.text : "";
 					return new Text(theme.fg("success", "✓ ") + theme.fg("muted", msg), 0, 0);
@@ -253,17 +265,62 @@ export default function (pi: ExtensionAPI) {
 		},
 	});
 
-	pi.registerCommand("todos", {
-		description: "Show all todos for the current project",
-		handler: async (_args, ctx) => {
-			if (!ctx.hasUI) {
-				ctx.ui.notify("/todos requires interactive mode", "error");
+	pi.registerCommand("todo", {
+		description: "Open the todo UI or run a subcommand like /todo add <description>",
+		handler: async (args, ctx) => {
+			const parsed = parseTodoCommandArgs(args);
+			if (!parsed.ok) {
+				if (ctx.hasUI) ctx.ui.notify(parsed.error, "error");
+				else console.log(parsed.error);
 				return;
 			}
 
-			await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
-				return new TodoListComponent(todos, theme, () => done());
+			if (parsed.mode === "ui") {
+				if (!ctx.hasUI) {
+					console.log("/todo requires interactive mode or a subcommand like /todo add <description>");
+					return;
+				}
+
+				await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
+					return new TodoListComponent(todos, theme, () => done());
+				});
+				return;
+			}
+
+			const action =
+				parsed.action.action === "workon" && !parsed.action.assignee
+					? { ...parsed.action, assignee: ctx.sessionManager.getSessionId() }
+					: parsed.action;
+
+			const storagePath = getTodoStoragePath(ctx.cwd);
+			const result = await withFileMutationQueue(storagePath, async () => {
+				const baseState = (await loadTodoState(ctx.cwd)) ?? { todos, nextId };
+				const next = applyTodoAction(baseState, action);
+				await saveTodoState(ctx.cwd, next.state);
+				todos = next.state.todos;
+				nextId = next.state.nextId;
+				return next;
 			});
+
+			if (result.details.error) {
+				if (ctx.hasUI) ctx.ui.notify(result.text, "error");
+				else console.log(result.text);
+				return;
+			}
+
+			if (action.action === "list") {
+				if (ctx.hasUI) {
+					await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
+						return new TodoListComponent(todos, theme, () => done());
+					});
+				} else {
+					console.log(result.text);
+				}
+				return;
+			}
+
+			if (ctx.hasUI) ctx.ui.notify(result.text, "success");
+			else console.log(result.text);
 		},
 	});
 }
