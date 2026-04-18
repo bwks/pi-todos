@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-04-18
+
+### Fixed
+- `/todo` now refreshes from `.pi/todos.json` every time the command runs so the UI and subcommands use the latest persisted state
+- added integration-style coverage for preferring persisted `.pi/todos.json` state over fallback session state
+
 ## [0.3.1] - 2026-04-18
 
 ### Fixed

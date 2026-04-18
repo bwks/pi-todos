@@ -9,6 +9,7 @@ import {
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { parseTodoCommandArgs } from "../src/todo-command";
+import { resolveTodoState } from "../src/todo-sync";
 import { getTodoStoragePath, loadTodoState, saveTodoState } from "../src/todo-storage";
 import {
 	applyTodoAction,
@@ -153,19 +154,10 @@ export default function (pi: ExtensionAPI) {
 	};
 
 	const syncState = async (ctx: ExtensionContext) => {
-		const storedState = await loadTodoState(ctx.cwd);
-		if (storedState) {
-			todos = storedState.todos;
-			nextId = storedState.nextId;
-			return;
-		}
-
 		const restored = reconstructSessionState(ctx);
-		todos = restored.todos;
-		nextId = restored.nextId;
-		if (restored.todos.length > 0 || restored.nextId > 1) {
-			await saveTodoState(ctx.cwd, restored);
-		}
+		const resolved = await resolveTodoState(ctx.cwd, restored);
+		todos = resolved.todos;
+		nextId = resolved.nextId;
 	};
 
 	pi.on("session_start", async (_event, ctx) => syncState(ctx));
@@ -268,6 +260,7 @@ export default function (pi: ExtensionAPI) {
 	pi.registerCommand("todo", {
 		description: "Open the todo UI or run a subcommand like /todo add <description>",
 		handler: async (args, ctx) => {
+			await syncState(ctx);
 			const parsed = parseTodoCommandArgs(args);
 			if (!parsed.ok) {
 				if (ctx.hasUI) ctx.ui.notify(parsed.error, "error");
