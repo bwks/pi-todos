@@ -76,8 +76,8 @@ Use slash subcommands directly from the command line:
 /todo list
 /todo status 2 blocked
 /todo done 1
-/todo workon 3
-/todo workon 3 subagent-a
+/todo assign 3
+/todo assign 3 subagent-a
 ```
 
 ## How it works
@@ -89,7 +89,7 @@ This extension stores todos in `.pi/todos.json` in the current project. That mea
 - todo changes persist even after exiting pi
 - todos support statuses like `unassigned`, `assigned`, `in_progress`, `blocked`, `done`, and `cancelled`
 - todos can optionally track an assignee/agent for delegated work
-- `/todo workon <id>` defaults to the current session when no agent is provided
+- `/todo assign <id>` defaults to the current session when no agent is provided
 - tool result details are still used for rendering and session history
 
 If you used an older session-only version of this extension, it will fall back to session history the first time and write the restored state into `.pi/todos.json`.

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-04-18
+
+### Fixed
+- renamed the slash command from `/todo workon` to `/todo assign` for clearer task ownership semantics and to avoid confusion about assignment vs. active work state
+
 ## [0.3.0] - 2026-04-18
 
 ### Added
@@ -15,7 +20,7 @@ All notable changes to this project will be documented in this file.
 - consolidated the user-facing slash commands under `/todo`
 - `/todo` with no arguments now opens the todo UI
 - removed the separate `/todos` command
-- `/todo workon <id> [agent]` now marks a todo `in_progress`, records the agent name, and defaults to the current session when no agent is provided
+- `/todo assign <id> [agent]` now records the agent name and defaults to the current session when no agent is provided
 
 ## [0.2.0] - 2026-04-18
 

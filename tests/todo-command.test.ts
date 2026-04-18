@@ -30,8 +30,8 @@ test("parseTodoCommandArgs parses list command", () => {
 	});
 });
 
-test("parseTodoCommandArgs parses workon command", () => {
-	assert.deepEqual(parseTodoCommandArgs("workon 3 reviewer-agent"), {
+test("parseTodoCommandArgs parses assign command", () => {
+	assert.deepEqual(parseTodoCommandArgs("assign 3 reviewer-agent"), {
 		ok: true,
 		mode: "action",
 		action: {
@@ -88,8 +88,8 @@ test("parseTodoCommandArgs rejects add without text", () => {
 	});
 });
 
-test("parseTodoCommandArgs allows workon without agent", () => {
-	assert.deepEqual(parseTodoCommandArgs("workon 3"), {
+test("parseTodoCommandArgs allows assign without agent", () => {
+	assert.deepEqual(parseTodoCommandArgs("assign 3"), {
 		ok: true,
 		mode: "action",
 		action: {

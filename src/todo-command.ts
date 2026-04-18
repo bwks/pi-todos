@@ -36,8 +36,8 @@ export function parseTodoCommandArgs(args: string | undefined): ParsedTodoComman
 		case "list":
 			return { ok: true, mode: "action", action: { action: "list" } };
 
-		case "workon": {
-			const id = parseId(rest[0], "Usage: /todo workon <id> [agent]");
+		case "assign": {
+			const id = parseId(rest[0], "Usage: /todo assign <id> [agent]");
 			if (typeof id !== "number") return id;
 			const assignee = rest.slice(1).join(" ").trim();
 			return { ok: true, mode: "action", action: { action: "workon", id, ...(assignee ? { assignee } : {}) } };
