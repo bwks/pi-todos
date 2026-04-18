@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-04-18
+
+### Added
+- centered TUI popover rendering for `/todo`
+- overlay option tests for the todo popover window
+- ANSI-aware frame line tests for todo popover rendering
+
+### Fixed
+- right-side alignment for the centered todo popover when lines contain styled text
+
 ## [0.3.4] - 2026-04-18
 
 ### Added

@@ -12,6 +12,7 @@ import { Type } from "@sinclair/typebox";
 import { buildWorkonPrompt, parseTodoCommandArgs } from "../src/todo-command";
 import { isTodoStatePath, shouldAllowTodoJsonInspection } from "../src/todo-guard";
 import { resolveTodoState } from "../src/todo-sync";
+import { buildTodoFrameLine, getTodoOverlayOptions } from "../src/todo-ui";
 import { getTodoStoragePath, loadTodoState, saveTodoState } from "../src/todo-storage";
 import {
 	applyTodoAction,
@@ -104,21 +105,24 @@ class TodoListComponent {
 
 		const lines: string[] = [];
 		const th = this.theme;
+		const innerWidth = Math.max(0, width - 2);
+		const border = th.fg("borderAccent", `┌${"─".repeat(innerWidth)}┐`);
+		const bottomBorder = th.fg("borderAccent", `└${"─".repeat(innerWidth)}┘`);
+		const emptyLine = th.fg("borderAccent", "│") + " ".repeat(innerWidth) + th.fg("borderAccent", "│");
+		const frameLine = (content = "") => buildTodoFrameLine(width, content, (value) => th.fg("borderAccent", value));
 
-		lines.push("");
-		const title = th.fg("accent", " Todos ");
-		const headerLine =
-			th.fg("borderMuted", "─".repeat(3)) + title + th.fg("borderMuted", "─".repeat(Math.max(0, width - 10)));
-		lines.push(truncateToWidth(headerLine, width));
-		lines.push("");
+		lines.push(border);
+		lines.push(emptyLine);
+		lines.push(frameLine(` ${th.fg("accent", "Todos")} `));
+		lines.push(emptyLine);
 
 		if (this.todos.length === 0) {
-			lines.push(truncateToWidth(`  ${th.fg("dim", "No todos yet. Ask the agent to add some!")}`, width));
+			lines.push(frameLine(` ${th.fg("dim", "No todos yet. Ask the agent to add some!")}`));
 		} else {
 			const done = this.todos.filter((t) => t.status === "done").length;
 			const total = this.todos.length;
-			lines.push(truncateToWidth(`  ${th.fg("muted", `${done}/${total} done`)}`, width));
-			lines.push("");
+			lines.push(frameLine(` ${th.fg("muted", `${done}/${total} done`)}`));
+			lines.push(emptyLine);
 
 			for (const todo of this.todos) {
 				const marker = getStatusMarker(th, todo.status);
@@ -126,13 +130,14 @@ class TodoListComponent {
 				const status = th.fg(getStatusColor(todo.status), `[${formatStatus(todo.status)}]`);
 				const text = isClosedStatus(todo.status) ? th.fg("dim", todo.text) : th.fg("text", todo.text);
 				const assignee = todo.assignee ? th.fg("accent", formatAssignee(todo.assignee)) : "";
-				lines.push(truncateToWidth(`  ${marker} ${id} ${status} ${text}${assignee}`, width));
+				lines.push(frameLine(` ${marker} ${id} ${status} ${text}${assignee}`));
 			}
 		}
 
-		lines.push("");
-		lines.push(truncateToWidth(`  ${th.fg("dim", "Press Escape to close")}`, width));
-		lines.push("");
+		lines.push(emptyLine);
+		lines.push(frameLine(` ${th.fg("dim", "Press Escape to close")}`));
+		lines.push(emptyLine);
+		lines.push(bottomBorder);
 
 		this.cachedWidth = width;
 		this.cachedLines = lines;
@@ -309,7 +314,7 @@ export default function (pi: ExtensionAPI) {
 
 				await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
 					return new TodoListComponent(todos, theme, () => done());
-				});
+				}, { overlay: true, overlayOptions: getTodoOverlayOptions() });
 				return;
 			}
 
@@ -338,7 +343,7 @@ export default function (pi: ExtensionAPI) {
 				if (ctx.hasUI) {
 					await ctx.ui.custom<void>((_tui, theme, _kb, done) => {
 						return new TodoListComponent(todos, theme, () => done());
-					});
+					}, { overlay: true, overlayOptions: getTodoOverlayOptions() });
 				} else {
 					console.log(result.text);
 				}

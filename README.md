@@ -10,7 +10,7 @@ It adds a `todo` tool for the agent and a `/todo` command for you. Todos are sto
 - reusable across pi sessions in the same repo
 - migration fallback from older session-only todo history
 - `todo` tool for list/add/toggle/set_status/assign/workon/clear
-- `/todo` command with a simple interactive view and subcommands
+- `/todo` command with a centered TUI popover view and subcommands
 
 ## Install
 
@@ -68,6 +68,8 @@ Open the todo list directly with:
 ```text
 /todo
 ```
+
+In the TUI, the todo list opens as a centered popover window.
 
 Use slash subcommands directly from the command line:
 
