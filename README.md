@@ -9,7 +9,7 @@ It adds a `todo` tool for the agent and a `/todo` command for you. Todos are sto
 - project-local persistent todos stored in `.pi/todos.json`
 - reusable across pi sessions in the same repo
 - migration fallback from older session-only todo history
-- `todo` tool for list/add/toggle/set_status/workon/clear
+- `todo` tool for list/add/toggle/set_status/assign/workon/clear
 - `/todo` command with a simple interactive view and subcommands
 
 ## Install
@@ -78,6 +78,8 @@ Use slash subcommands directly from the command line:
 /todo done 1
 /todo assign 3
 /todo assign 3 subagent-a
+/todo workon 3
+/todo workon 3 subagent-a
 ```
 
 ## How it works
@@ -90,6 +92,9 @@ This extension stores todos in `.pi/todos.json` in the current project. That mea
 - todos support statuses like `unassigned`, `assigned`, `in_progress`, `blocked`, `done`, and `cancelled`
 - todos can optionally track an assignee/agent for delegated work
 - `/todo assign <id>` defaults to the current session when no agent is provided
+- `/todo workon <id>` starts work on an assigned todo, or assigns it first if needed
+- when `/todo workon` targets the current session, it also sends a follow-up user message so work actually begins
+- direct `read`/`write`/`edit` access to `.pi/todos.json` is guarded at runtime unless you explicitly ask to inspect that file
 - tool result details are still used for rendering and session history
 
 If you used an older session-only version of this extension, it will fall back to session history the first time and write the restored state into `.pi/todos.json`.

@@ -67,7 +67,26 @@ test("set_status validates id and status", () => {
 	assert.equal(missingStatus.details.error, "status required");
 });
 
-test("workon assigns a todo to an agent and marks it in progress", () => {
+test("assign sets assignee and marks assigned when todo was unassigned", () => {
+	const added = applyTodoAction(initialTodoState(), { action: "add", text: "delegate work" });
+	const updated = applyTodoAction(added.state, { action: "assign", id: 1, assignee: "frontend-agent" });
+
+	assert.equal(updated.text, "Todo #1 assigned to frontend-agent");
+	assert.deepEqual(updated.state.todos[0], {
+		id: 1,
+		text: "delegate work",
+		status: "assigned",
+		assignee: "frontend-agent",
+	});
+});
+
+test("assign without assignee keeps todo unchanged and reports error", () => {
+	const base = applyTodoAction(initialTodoState(), { action: "add", text: "task" }).state;
+	const result = applyTodoAction(base, { action: "assign", id: 1 });
+	assert.equal(result.details.error, "assignee required");
+});
+
+test("workon assigns when unassigned and starts work", () => {
 	const added = applyTodoAction(initialTodoState(), { action: "add", text: "delegate work" });
 	const updated = applyTodoAction(added.state, { action: "workon", id: 1, assignee: "frontend-agent" });
 
@@ -80,7 +99,21 @@ test("workon assigns a todo to an agent and marks it in progress", () => {
 	});
 });
 
-test("workon validates id and assignee", () => {
+test("workon on already assigned todo preserves assignee and just starts work", () => {
+	const added = applyTodoAction(initialTodoState(), { action: "add", text: "task" });
+	const assigned = applyTodoAction(added.state, { action: "assign", id: 1, assignee: "agent-a" });
+	const working = applyTodoAction(assigned.state, { action: "workon", id: 1 });
+
+	assert.equal(working.text, "Todo #1 started by agent-a");
+	assert.deepEqual(working.state.todos[0], {
+		id: 1,
+		text: "task",
+		status: "in_progress",
+		assignee: "agent-a",
+	});
+});
+
+test("workon validates id and requires assignee only when todo is unassigned", () => {
 	const base = applyTodoAction(initialTodoState(), { action: "add", text: "task" }).state;
 
 	const missingId = applyTodoAction(base, { action: "workon", assignee: "agent-a" });

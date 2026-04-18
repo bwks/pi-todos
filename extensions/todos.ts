@@ -1,14 +1,17 @@
+import path from "node:path";
+
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
 	type ExtensionAPI,
 	type ExtensionContext,
+	isToolCallEventType,
 	type Theme,
 	type ToolExecutionMode,
 	withFileMutationQueue,
 } from "@mariozechner/pi-coding-agent";
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
-import { parseTodoCommandArgs } from "../src/todo-command";
+import { buildWorkonPrompt, parseTodoCommandArgs } from "../src/todo-command";
 import { resolveTodoState } from "../src/todo-sync";
 import { getTodoStoragePath, loadTodoState, saveTodoState } from "../src/todo-storage";
 import {
@@ -21,13 +24,13 @@ import {
 } from "../src/todo-state";
 
 const TodoParams = Type.Object({
-	action: StringEnum(["list", "add", "toggle", "set_status", "workon", "clear"] as const),
+	action: StringEnum(["list", "add", "toggle", "set_status", "assign", "workon", "clear"] as const),
 	text: Type.Optional(Type.String({ description: "Todo text (for add)" })),
-	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle/set_status/workon)" })),
+	id: Type.Optional(Type.Number({ description: "Todo ID (for toggle/set_status/assign/workon)" })),
 	status: Type.Optional(
 		StringEnum([...TODO_STATUSES] as TodoStatus[], { description: "Todo status (for add/set_status)" }),
 	),
-	assignee: Type.Optional(Type.String({ description: "Agent/session responsible for the todo (for workon)" })),
+	assignee: Type.Optional(Type.String({ description: "Agent/session responsible for the todo (for assign/workon)" })),
 });
 
 function formatStatus(status: TodoStatus): string {
@@ -141,6 +144,12 @@ class TodoListComponent {
 export default function (pi: ExtensionAPI) {
 	let todos: Todo[] = [];
 	let nextId = 1;
+	let allowTodoJsonInspection = false;
+
+	const isTodoStatePath = (cwd: string, filePath: string) => {
+		const normalized = filePath.startsWith("@") ? filePath.slice(1) : filePath;
+		return path.resolve(cwd, normalized) === getTodoStoragePath(cwd);
+	};
 
 	const reconstructSessionState = (ctx: ExtensionContext) => {
 		const history: Array<TodoDetails | undefined> = [];
@@ -162,13 +171,46 @@ export default function (pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => syncState(ctx));
 	pi.on("session_tree", async (_event, ctx) => syncState(ctx));
+	pi.on("before_agent_start", async (event) => {
+		const prompt = event.prompt.toLowerCase();
+		allowTodoJsonInspection =
+			prompt.includes(".pi/todos.json") &&
+			(prompt.includes("inspect") || prompt.includes("show") || prompt.includes("raw") || prompt.includes("file"));
+		
+		return {
+		return {
+			systemPrompt:
+				event.systemPrompt +
+				"\n\nTodo extension guidance:\n- Treat .pi/todos.json as internal state for the todo system.\n- Do not expose raw contents, diffs, or direct read/write operations involving .pi/todos.json unless the user explicitly asks to inspect that file.\n- When reading or updating todos, summarize changes in user-facing language instead of showing storage-level details.",
+		};
+	});
+
+	pi.on("tool_call", async (event, ctx) => {
+		if (allowTodoJsonInspection) return;
+
+		if (isToolCallEventType("read", event) && isTodoStatePath(ctx.cwd, event.input.path)) {
+			return { block: true, reason: "Use the todo system instead of reading .pi/todos.json directly." };
+		}
+
+		if (isToolCallEventType("write", event) && isTodoStatePath(ctx.cwd, event.input.path)) {
+			return { block: true, reason: "Use the todo system instead of writing .pi/todos.json directly." };
+		}
+
+		if (isToolCallEventType("edit", event) && event.input.path && isTodoStatePath(ctx.cwd, event.input.path)) {
+			return { block: true, reason: "Use the todo system instead of editing .pi/todos.json directly." };
+		}
+	});
 
 	pi.registerTool({
 		name: "todo",
 		label: "Todo",
 		description:
-			"Manage a todo list. Actions: list, add (text/status), toggle (id), set_status (id/status), workon (id/assignee), clear",
-		promptSnippet: "Manage project todos (list/add/toggle/set_status/workon/clear)",
+			"Manage a todo list. Actions: list, add (text/status), toggle (id), set_status (id/status), assign (id/assignee), workon (id/assignee), clear",
+		promptSnippet: "Manage project todos (list/add/toggle/set_status/assign/workon/clear)",
+		promptGuidelines: [
+			"Treat .pi/todos.json as internal state for this extension; do not show raw file contents or diffs unless the user explicitly asks to inspect that file.",
+			"When reporting todo changes, summarize them in user-facing language such as started, assigned, done, or blocked instead of describing storage operations.",
+		],
 		parameters: TodoParams,
 		executionMode: "sequential" as ToolExecutionMode,
 
@@ -246,6 +288,7 @@ export default function (pi: ExtensionAPI) {
 				}
 				case "toggle":
 				case "set_status":
+				case "assign":
 				case "workon": {
 					const text = result.content[0];
 					const msg = text?.type === "text" ? text.text : "";
@@ -281,7 +324,7 @@ export default function (pi: ExtensionAPI) {
 			}
 
 			const action =
-				parsed.action.action === "workon" && !parsed.action.assignee
+				(parsed.action.action === "assign" || parsed.action.action === "workon") && !parsed.action.assignee
 					? { ...parsed.action, assignee: ctx.sessionManager.getSessionId() }
 					: parsed.action;
 
@@ -310,6 +353,16 @@ export default function (pi: ExtensionAPI) {
 					console.log(result.text);
 				}
 				return;
+			}
+
+			if (action.action === "workon") {
+				const updatedTodo = result.state.todos.find((todo) => todo.id === action.id);
+				const currentSessionId = ctx.sessionManager.getSessionId();
+				if (updatedTodo?.assignee === currentSessionId) {
+					pi.sendUserMessage(buildWorkonPrompt(updatedTodo));
+					if (ctx.hasUI) ctx.ui.notify(`Started work on #${updatedTodo.id}`, "success");
+					return;
+				}
 			}
 
 			if (ctx.hasUI) ctx.ui.notify(result.text, "success");

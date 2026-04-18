@@ -22,7 +22,7 @@ export interface TodoState {
 }
 
 export interface TodoDetails {
-	action: "list" | "add" | "toggle" | "set_status" | "workon" | "clear";
+	action: "list" | "add" | "toggle" | "set_status" | "assign" | "workon" | "clear";
 	todos: Todo[];
 	nextId: number;
 	error?: string;
@@ -33,6 +33,7 @@ export type TodoAction =
 	| { action: "add"; text?: string; status?: TodoStatus }
 	| { action: "toggle"; id?: number }
 	| { action: "set_status"; id?: number; status?: TodoStatus }
+	| { action: "assign"; id?: number; assignee?: string }
 	| { action: "workon"; id?: number; assignee?: string }
 	| { action: "clear" };
 
@@ -192,20 +193,49 @@ export function applyTodoAction(
 			};
 		}
 
-		case "workon": {
+		case "assign": {
 			if (input.id === undefined || !Number.isInteger(input.id)) {
 				return {
 					state: cloneTodoState(state),
-					details: snapshot(state, "workon", "id required"),
-					text: "Error: integer id required for workon",
+					details: snapshot(state, "assign", "id required"),
+					text: "Error: integer id required for assign",
 				};
 			}
 			const assignee = input.assignee?.trim();
 			if (!assignee) {
 				return {
 					state: cloneTodoState(state),
-					details: snapshot(state, "workon", "assignee required"),
-					text: "Error: assignee required for workon",
+					details: snapshot(state, "assign", "assignee required"),
+					text: "Error: assignee required for assign",
+				};
+			}
+
+			const nextTodos = cloneTodos(state.todos);
+			const todo = nextTodos.find((item) => item.id === input.id);
+			if (!todo) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "assign", `#${input.id} not found`),
+					text: `Todo #${input.id} not found`,
+				};
+			}
+
+			todo.assignee = assignee;
+			if (todo.status === "unassigned") todo.status = "assigned";
+			const nextState: TodoState = { todos: nextTodos, nextId: state.nextId };
+			return {
+				state: nextState,
+				details: snapshot(nextState, "assign"),
+				text: `Todo #${todo.id} assigned to ${assignee}`,
+			};
+		}
+
+		case "workon": {
+			if (input.id === undefined || !Number.isInteger(input.id)) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "workon", "id required"),
+					text: "Error: integer id required for workon",
 				};
 			}
 
@@ -219,13 +249,28 @@ export function applyTodoAction(
 				};
 			}
 
-			todo.assignee = assignee;
+			const requestedAssignee = input.assignee?.trim();
+			const hadAssignee = Boolean(todo.assignee);
+			if (requestedAssignee && !todo.assignee) {
+				todo.assignee = requestedAssignee;
+			}
+			if (!todo.assignee) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "workon", "assignee required"),
+					text: "Error: assignee required for workon",
+				};
+			}
+
 			todo.status = "in_progress";
 			const nextState: TodoState = { todos: nextTodos, nextId: state.nextId };
+			const text = requestedAssignee && !hadAssignee
+				? `Todo #${todo.id} assigned to ${todo.assignee} and marked in_progress`
+				: `Todo #${todo.id} started by ${todo.assignee}`;
 			return {
 				state: nextState,
 				details: snapshot(nextState, "workon"),
-				text: `Todo #${todo.id} assigned to ${assignee} and marked in_progress`,
+				text,
 			};
 		}
 

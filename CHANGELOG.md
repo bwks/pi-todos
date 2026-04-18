@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-04-18
+
+### Added
+- `/todo workon <id> [agent]` as a separate command from `/todo assign`
+
+### Changed
+- `/todo assign` now handles assignment without implicitly starting work
+- `/todo workon` now starts work on an already-assigned todo, or assigns it first when needed
+- `/todo workon` now triggers an actual follow-up work prompt when the todo is assigned to the current session
+- the extension now injects prompt guidance to treat `.pi/todos.json` as internal state and avoid surfacing raw storage details
+- runtime guards now block direct `read`/`write`/`edit` access to `.pi/todos.json` unless the user explicitly asks to inspect that file
+
 ## [0.3.2] - 2026-04-18
 
 ### Fixed

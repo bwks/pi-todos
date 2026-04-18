@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseTodoCommandArgs } from "../src/todo-command";
+import { buildWorkonPrompt, parseTodoCommandArgs } from "../src/todo-command";
+
+test("buildWorkonPrompt builds a user message for starting work", () => {
+	assert.equal(buildWorkonPrompt({ id: 7, text: "fix the bug" }), "Work on todo #7: fix the bug");
+});
 
 test("parseTodoCommandArgs uses UI mode for empty input", () => {
 	assert.deepEqual(parseTodoCommandArgs(undefined), {
@@ -35,9 +39,43 @@ test("parseTodoCommandArgs parses assign command", () => {
 		ok: true,
 		mode: "action",
 		action: {
+			action: "assign",
+			id: 3,
+			assignee: "reviewer-agent",
+		},
+	});
+});
+
+test("parseTodoCommandArgs allows assign without agent", () => {
+	assert.deepEqual(parseTodoCommandArgs("assign 3"), {
+		ok: true,
+		mode: "action",
+		action: {
+			action: "assign",
+			id: 3,
+		},
+	});
+});
+
+test("parseTodoCommandArgs parses workon command", () => {
+	assert.deepEqual(parseTodoCommandArgs("workon 3 reviewer-agent"), {
+		ok: true,
+		mode: "action",
+		action: {
 			action: "workon",
 			id: 3,
 			assignee: "reviewer-agent",
+		},
+	});
+});
+
+test("parseTodoCommandArgs allows workon without agent", () => {
+	assert.deepEqual(parseTodoCommandArgs("workon 3"), {
+		ok: true,
+		mode: "action",
+		action: {
+			action: "workon",
+			id: 3,
 		},
 	});
 });
@@ -85,16 +123,5 @@ test("parseTodoCommandArgs rejects add without text", () => {
 	assert.deepEqual(parseTodoCommandArgs("add   "), {
 		ok: false,
 		error: "Usage: /todo add <description>",
-	});
-});
-
-test("parseTodoCommandArgs allows assign without agent", () => {
-	assert.deepEqual(parseTodoCommandArgs("assign 3"), {
-		ok: true,
-		mode: "action",
-		action: {
-			action: "workon",
-			id: 3,
-		},
 	});
 });

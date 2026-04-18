@@ -1,4 +1,4 @@
-import type { TodoAction, TodoStatus } from "./todo-state";
+import type { Todo, TodoAction, TodoStatus } from "./todo-state";
 import { isTodoStatus } from "./todo-state";
 
 export type ParsedTodoCommand =
@@ -16,6 +16,10 @@ function parseId(value: string | undefined, usage: string): number | ParsedTodoC
 function parseStatus(value: string | undefined, usage: string): TodoStatus | ParsedTodoCommand {
 	if (!value || !isTodoStatus(value)) return { ok: false, error: usage };
 	return value;
+}
+
+export function buildWorkonPrompt(todo: Pick<Todo, "id" | "text">): string {
+	return `Work on todo #${todo.id}: ${todo.text}`;
 }
 
 export function parseTodoCommandArgs(args: string | undefined): ParsedTodoCommand {
@@ -38,6 +42,13 @@ export function parseTodoCommandArgs(args: string | undefined): ParsedTodoComman
 
 		case "assign": {
 			const id = parseId(rest[0], "Usage: /todo assign <id> [agent]");
+			if (typeof id !== "number") return id;
+			const assignee = rest.slice(1).join(" ").trim();
+			return { ok: true, mode: "action", action: { action: "assign", id, ...(assignee ? { assignee } : {}) } };
+		}
+
+		case "workon": {
+			const id = parseId(rest[0], "Usage: /todo workon <id> [agent]");
 			if (typeof id !== "number") return id;
 			const assignee = rest.slice(1).join(" ").trim();
 			return { ok: true, mode: "action", action: { action: "workon", id, ...(assignee ? { assignee } : {}) } };
