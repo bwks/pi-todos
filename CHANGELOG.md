@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-04-18
+
+### Added
+- parse-validity test for `extensions/todos.ts`
+- explicit guard tests for `.pi/todos.json` path and inspection detection
+
+### Changed
+- runtime guard logic for `.pi/todos.json` was factored into testable helpers
+
+### Fixed
+- corrected a syntax error in `extensions/todos.ts` that prevented the extension from loading
+- completed and verified the runtime guard behavior that hides direct `.pi/todos.json` storage operations during normal use
+
 ## [0.3.3] - 2026-04-18
 
 ### Added

@@ -1,5 +1,3 @@
-import path from "node:path";
-
 import { StringEnum } from "@mariozechner/pi-ai";
 import {
 	type ExtensionAPI,
@@ -12,6 +10,7 @@ import {
 import { matchesKey, Text, truncateToWidth } from "@mariozechner/pi-tui";
 import { Type } from "@sinclair/typebox";
 import { buildWorkonPrompt, parseTodoCommandArgs } from "../src/todo-command";
+import { isTodoStatePath, shouldAllowTodoJsonInspection } from "../src/todo-guard";
 import { resolveTodoState } from "../src/todo-sync";
 import { getTodoStoragePath, loadTodoState, saveTodoState } from "../src/todo-storage";
 import {
@@ -146,11 +145,6 @@ export default function (pi: ExtensionAPI) {
 	let nextId = 1;
 	let allowTodoJsonInspection = false;
 
-	const isTodoStatePath = (cwd: string, filePath: string) => {
-		const normalized = filePath.startsWith("@") ? filePath.slice(1) : filePath;
-		return path.resolve(cwd, normalized) === getTodoStoragePath(cwd);
-	};
-
 	const reconstructSessionState = (ctx: ExtensionContext) => {
 		const history: Array<TodoDetails | undefined> = [];
 		for (const entry of ctx.sessionManager.getBranch()) {
@@ -172,12 +166,8 @@ export default function (pi: ExtensionAPI) {
 	pi.on("session_start", async (_event, ctx) => syncState(ctx));
 	pi.on("session_tree", async (_event, ctx) => syncState(ctx));
 	pi.on("before_agent_start", async (event) => {
-		const prompt = event.prompt.toLowerCase();
-		allowTodoJsonInspection =
-			prompt.includes(".pi/todos.json") &&
-			(prompt.includes("inspect") || prompt.includes("show") || prompt.includes("raw") || prompt.includes("file"));
-		
-		return {
+		allowTodoJsonInspection = shouldAllowTodoJsonInspection(event.prompt);
+
 		return {
 			systemPrompt:
 				event.systemPrompt +
