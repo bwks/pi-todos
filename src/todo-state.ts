@@ -1,7 +1,18 @@
+export const TODO_STATUSES = [
+	"unassigned",
+	"assigned",
+	"in_progress",
+	"blocked",
+	"done",
+	"cancelled",
+] as const;
+
+export type TodoStatus = (typeof TODO_STATUSES)[number];
+
 export interface Todo {
 	id: number;
 	text: string;
-	done: boolean;
+	status: TodoStatus;
 }
 
 export interface TodoState {
@@ -10,7 +21,7 @@ export interface TodoState {
 }
 
 export interface TodoDetails {
-	action: "list" | "add" | "toggle" | "clear";
+	action: "list" | "add" | "toggle" | "set_status" | "clear";
 	todos: Todo[];
 	nextId: number;
 	error?: string;
@@ -18,11 +29,16 @@ export interface TodoDetails {
 
 export type TodoAction =
 	| { action: "list" }
-	| { action: "add"; text?: string }
+	| { action: "add"; text?: string; status?: TodoStatus }
 	| { action: "toggle"; id?: number }
+	| { action: "set_status"; id?: number; status?: TodoStatus }
 	| { action: "clear" };
 
 export const initialTodoState = (): TodoState => ({ todos: [], nextId: 1 });
+
+export function isTodoStatus(value: unknown): value is TodoStatus {
+	return typeof value === "string" && TODO_STATUSES.includes(value as TodoStatus);
+}
 
 export function cloneTodos(todos: Todo[]): Todo[] {
 	return todos.map((todo) => ({ ...todo }));
@@ -58,6 +74,10 @@ function snapshot(state: TodoState, action: TodoDetails["action"], error?: strin
 	};
 }
 
+function formatTodo(todo: Todo): string {
+	return `[${todo.status}] #${todo.id}: ${todo.text}`;
+}
+
 export function applyTodoAction(
 	state: TodoState,
 	input: TodoAction,
@@ -67,9 +87,7 @@ export function applyTodoAction(
 			return {
 				state: cloneTodoState(state),
 				details: snapshot(state, "list"),
-				text: state.todos.length
-					? state.todos.map((todo) => `[${todo.done ? "x" : " "}] #${todo.id}: ${todo.text}`).join("\n")
-					: "No todos",
+				text: state.todos.length ? state.todos.map(formatTodo).join("\n") : "No todos",
 			};
 
 		case "add": {
@@ -81,16 +99,17 @@ export function applyTodoAction(
 					text: "Error: non-empty text required for add",
 				};
 			}
+			const status = input.status && isTodoStatus(input.status) ? input.status : "unassigned";
 
 			const nextState: TodoState = {
-				todos: [...cloneTodos(state.todos), { id: state.nextId, text, done: false }],
+				todos: [...cloneTodos(state.todos), { id: state.nextId, text, status }],
 				nextId: state.nextId + 1,
 			};
 			const added = nextState.todos[nextState.todos.length - 1];
 			return {
 				state: nextState,
 				details: snapshot(nextState, "add"),
-				text: `Added todo #${added.id}: ${added.text}`,
+				text: `Added todo #${added.id}: ${added.text} [${added.status}]`,
 			};
 		}
 
@@ -113,12 +132,47 @@ export function applyTodoAction(
 				};
 			}
 
-			todo.done = !todo.done;
+			todo.status = todo.status === "done" ? "unassigned" : "done";
 			const nextState: TodoState = { todos: nextTodos, nextId: state.nextId };
 			return {
 				state: nextState,
 				details: snapshot(nextState, "toggle"),
-				text: `Todo #${todo.id} ${todo.done ? "completed" : "uncompleted"}`,
+				text: `Todo #${todo.id} marked ${todo.status}`,
+			};
+		}
+
+		case "set_status": {
+			if (input.id === undefined || !Number.isInteger(input.id)) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "set_status", "id required"),
+					text: "Error: integer id required for set_status",
+				};
+			}
+			if (!input.status || !isTodoStatus(input.status)) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "set_status", "status required"),
+					text: "Error: valid status required for set_status",
+				};
+			}
+
+			const nextTodos = cloneTodos(state.todos);
+			const todo = nextTodos.find((item) => item.id === input.id);
+			if (!todo) {
+				return {
+					state: cloneTodoState(state),
+					details: snapshot(state, "set_status", `#${input.id} not found`),
+					text: `Todo #${input.id} not found`,
+				};
+			}
+
+			todo.status = input.status;
+			const nextState: TodoState = { todos: nextTodos, nextId: state.nextId };
+			return {
+				state: nextState,
+				details: snapshot(nextState, "set_status"),
+				text: `Todo #${todo.id} set to ${todo.status}`,
 			};
 		}
 
